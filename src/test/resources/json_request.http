@@ -1,0 +1,6 @@
+POST http://localhost:8080/obfuscate
+Content-Type: application/json
+
+[
+  "https://antonius.cloud/remote.php/dav/public-calendars/Qq6FCoK8sqr2xNZz?export"
+]
