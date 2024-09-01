@@ -1,3 +1,4 @@
+import db.Migrations
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
 import io.ktor.client.request.*
@@ -13,6 +14,7 @@ import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import org.jetbrains.exposed.sql.Database
 import java.io.InputStream
 
 private val ics = ContentType.parse("text/calendar")
@@ -20,6 +22,9 @@ private val ics = ContentType.parse("text/calendar")
 private val client = HttpClient(CIO)
 
 fun main() {
+  Database.connect("jdbc:sqlite:obfuscal.db")
+  Migrations.init()
+
   embeddedServer(Netty, port = 8080, host = "0.0.0.0", module = Application::module)
     .start(wait = true)
 }
