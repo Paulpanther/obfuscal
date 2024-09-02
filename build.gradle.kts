@@ -49,8 +49,7 @@ dependencies {
   implementation("io.ktor:ktor-server-config-yaml:$ktor_version")
 
   // testing
-  testImplementation("io.ktor:ktor-server-tests-jvm")
-  testImplementation("org.jetbrains.kotlin:kotlin-test-junit:$kotlin_version")
+  testImplementation(kotlin("test"))
 }
 
 tasks.test {
