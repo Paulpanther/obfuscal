@@ -25,7 +25,7 @@ import java.io.OutputStream
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.Temporal
-import java.util.UUID
+import java.util.*
 import java.util.stream.LongStream
 import kotlin.streams.toList
 
@@ -65,18 +65,22 @@ class CalendarObfuscator(
       .flatMap { it.getComponents<VEvent>(Component.VEVENT) }
       .filter { it.description.map { !it.value.startsWith("HIDE") }.orElse(true) }
 
-    val sectionsInPeriod = LongStream
-      .range(0, timeframe.period.days.toLong())
-      .toList()
-      .map { i -> timeframe.start.plusDays(i) }
-      .flatMap { day -> sectionsPerDay.map { section -> section.atDate(day) } }
-
     val busySections = mutableSetOf<LocalDateTimeSlice>()
     val showFully = mutableListOf<VEvent>()
 
     // TODO could be parallelized
     for (event in events) {
-      // TODO filter multi-day events
+      // Events with SHOW in the description are always shown (not obfuscated)
+      if (event.description.map { it.value.startsWith("SHOW") }.orElse(false)) {
+        showFully += event
+        continue
+      }
+
+      // Hide multi-day events (that have no SHOW tag)
+      val isMultiDay = event.getDateTimeStart<Temporal>().orElse(null)?.date is LocalDate
+      if (isMultiDay) {
+        continue
+      }
 
       val occurrences = event
         .calculateRecurrenceSet<Temporal>(timeframe.toLocalDateTimeSlice().toICal4jPeriod())
@@ -88,17 +92,15 @@ class CalendarObfuscator(
       // skip if occurrences are all outside of timeframe
       if (!occurrences.any { timeframe.toLocalDateTimeSlice().intersectsOrContains(it) }) continue
 
-      // Events with SHOW in the description are always shown (not obfuscated)
-      if (event.description.map { it.value.startsWith("SHOW") }.orElse(false)) {
-        showFully += event
-        continue
-      }
-
       for (occurrence in occurrences) {
-        val occurrenceSlice = occurrence
+        val sectionsInPeriod = LongStream
+          .range(0, occurrence.toDuration().toDays() + 1)
+          .toList()
+          .map { i -> occurrence.start.toLocalDate().plusDays(i) }
+          .flatMap { day -> sectionsPerDay.map { section -> section.atDate(day) } }
 
         for (section in sectionsInPeriod) {
-          if (section.intersectsOrContains(occurrenceSlice)) {
+          if (section.intersectsOrContains(occurrence)) {
             busySections += section
           }
         }

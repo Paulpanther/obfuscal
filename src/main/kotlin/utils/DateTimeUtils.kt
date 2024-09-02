@@ -1,5 +1,6 @@
 package utils
 
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -41,6 +42,8 @@ data class LocalDateTimeSlice(
         (o.start < end && o.end >= end) ||  // other intersects end
         (o.start >= start && o.end <= end)  // other is contained
   }
+
+  fun toDuration() = Duration.between(start, end)
 }
 
 fun net.fortuna.ical4j.model.Period<LocalDateTime>.toSlice() = LocalDateTimeSlice(start, end)
