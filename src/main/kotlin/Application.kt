@@ -1,3 +1,4 @@
+import db.GeneratedCalendar
 import db.Migrations
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
@@ -7,6 +8,7 @@ import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
+import io.ktor.server.auth.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.plugins.contentnegotiation.*
@@ -19,6 +21,7 @@ import org.jetbrains.exposed.sql.Database
 import utils.LocalDateSlice
 import utils.LocalTimeSlice
 import java.io.InputStream
+import java.time.DateTimeException
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -28,6 +31,10 @@ import java.time.format.DateTimeParseException
 private val ics = ContentType.parse("text/calendar")
 
 private val client = HttpClient(CIO)
+
+private val user = System.getenv("USER") ?: error("No USER env variable")
+private val password = System.getenv("PASSWORD") ?: error("No PASSWORD env variable")
+private val isDev = System.getenv("DEV") == "true"
 
 fun main() {
   Database.connect("jdbc:sqlite:obfuscal.db")
@@ -42,6 +49,19 @@ fun Application.module() {
     json()
   }
 
+  install(Authentication) {
+    basic("auth-write") {
+      realm = "Access to write operations"
+      validate { credentials ->
+        if (credentials.name == user && credentials.password == password) {
+          UserIdPrincipal(credentials.name)
+        } else {
+          null
+        }
+      }
+    }
+  }
+
   configureRouting()
 }
 
@@ -50,62 +70,95 @@ fun Application.configureRouting() {
     exception<IllegalArgumentException> { call, cause ->
       call.respond(HttpStatusCode.BadRequest, cause.message?.let { "Error parsing given information: ${cause.message}" } ?: "Input could not be handled")
     }
+
+    exception<Exception> { call, cause ->
+      if (isDev) {
+        call.respond(HttpStatusCode.InternalServerError, cause.stackTrace)
+      } else {
+        call.response.status(HttpStatusCode.InternalServerError)
+      }
+    }
   }
 
   routing {
-    post("/obfuscate") {
-      val contentType = call.request.contentType()
+    get("/{share}") {
+      val calendar = ShareController.getCalendarFromShare(call.pathParam("share"))
+      call.respondCalendar(calendar)
+    }
 
-      val timezone = call.request.queryParameters["timezone"]?.let {
-        try {
-          ZoneId.of(it)
-        } catch (e: Exception) {
-          throw IllegalArgumentException("Given query parameter 'timezone' could not be resolved")
-        }
-      } ?: throw IllegalArgumentException("Missing required query parameter 'timezone'")
-
-      val startDate = parseQueryDate(call.request.queryParameters, "timeframe-start")
-      val endDate = parseQueryDate(call.request.queryParameters, "timeframe-end")
-      if (startDate > endDate) throw IllegalArgumentException("'timeframe-start' must be earlier than 'timeframe-end'")
-      val timeframe = LocalDateSlice(startDate, endDate)
-
-      val sections = parseSections(call.request.queryParameters, "sections")
-
-      val cal = when {
-        call.request.isMultipart() -> {
-          val streams =
-            call.receiveMultipart()
-              .readAllParts()
-              .filterIsInstance<PartData.FileItem>()
-              .map { it.streamProvider() }
-          CalendarObfuscator
-            .fromStreams(streams, timezone, timeframe, sections)
-            .obfuscate()
+    authenticate("auth-write") {
+      route("/share") {
+        post("/{calendar}") {
+          // TODO expires
+          val share = ShareController.create(call.pathParam("calendar"))
+          call.respondText(share.name)
         }
 
-        contentType == ics -> {
-          val stream = call.receiveStream()
-          CalendarObfuscator
-            .fromStream(stream, timezone, timeframe, sections)
-            .obfuscate()
+        get {
+          val shares = ShareController.list()
+          call.respond(shares.map { it.toShareData() })
         }
 
-        contentType == ContentType.parse("application/json") -> {
-          val calendarUrls = call.receive<List<String>>()
-          val streams = calendarUrls.map { fetchCalendar(it) }
-          CalendarObfuscator
-            .fromStreams(streams, timezone, timeframe, sections)
-            .obfuscate()
+        delete("/{name}") {
+          val hasDeleted = ShareController.delete(call.pathParam("name"))
+          call.response.status(if (hasDeleted) HttpStatusCode.OK else HttpStatusCode.NoContent)
         }
-
-        else ->
-          throw IllegalArgumentException("Only accepts calendar files with content type $ics, actual content type $contentType")
       }
 
-      val filename = "obfuscal.ics"
-      call.response.header(HttpHeaders.ContentDisposition, ContentDisposition.Attachment.withParameter(ContentDisposition.Parameters.FileName, filename).toString())
-      call.respondOutputStream(ics, HttpStatusCode.OK) {
-        cal.writeTo(this)
+      route("/obfuscate") {
+        post("/{name}") {
+          val contentType = call.request.contentType()
+          val name = call.parameters["name"] ?: throw IllegalArgumentException("Missing path param 'name'")
+
+          val timezone = try {
+            ZoneId.of(call.queryParam("timezone"))
+          } catch (e: DateTimeException) {
+            throw IllegalArgumentException("Given query parameter 'timezone' could not be resolved")
+          }
+
+          val startDate = parseQueryDate(call.request.queryParameters, "timeframe-start")
+          val endDate = parseQueryDate(call.request.queryParameters, "timeframe-end")
+          if (startDate > endDate) throw IllegalArgumentException("'timeframe-start' must be earlier than 'timeframe-end'")
+          val timeframe = LocalDateSlice(startDate, endDate)
+
+          val sections = parseSections(call.request.queryParameters, "sections")
+
+          val streams = when {
+            call.request.isMultipart() -> {
+                call.receiveMultipart()
+                  .readAllParts()
+                  .filterIsInstance<PartData.FileItem>()
+                  .map { it.streamProvider() }
+            }
+            contentType == ics -> {
+              listOf(call.receiveStream())
+            }
+            contentType == ContentType.parse("application/json") -> {
+              call.receive<List<String>>().map { fetchCalendar(it) }
+            }
+            else ->
+              throw IllegalArgumentException("Only accepts calendar files with content type $ics, actual content type $contentType")
+          }
+
+          CalendarController.create(name, streams, timezone, timeframe, sections)
+
+          call.response.status(HttpStatusCode.OK)
+        }
+
+        get {
+          val calendars = CalendarController.list()
+          call.respond(calendars.map { it.name })
+        }
+
+        get("/{name}") {
+          val calendar = CalendarController.get(call.pathParam("name"))
+          call.respondCalendar(calendar)
+        }
+
+        delete("/{name}") {
+          val hasDeleted = CalendarController.delete(call.pathParam("name"))
+          call.response.status(if (hasDeleted) HttpStatusCode.OK else HttpStatusCode.NoContent)
+        }
       }
     }
   }
@@ -159,4 +212,20 @@ private fun parseTime(str: String): LocalTime {
   } catch (e: Exception) {
     throw IllegalArgumentException("Could not parse time information from input '$str'. Try format 'HHmm' (4 digits).")
   }
+}
+
+private suspend fun ApplicationCall.respondCalendar(calendar: GeneratedCalendar) {
+  val filename = "${calendar.name}.ics"
+  response.header(HttpHeaders.ContentDisposition, ContentDisposition.Attachment.withParameter(ContentDisposition.Parameters.FileName, filename).toString())
+  respondOutputStream(ics, HttpStatusCode.OK) {
+    write(calendar.content)
+  }
+}
+
+private fun ApplicationCall.pathParam(key: String): String {
+  return parameters[key] ?: throw IllegalArgumentException("Missing required path parameter '$key'")
+}
+
+private fun ApplicationCall.queryParam(key: String): String {
+  return request.queryParameters[key] ?: throw IllegalArgumentException("Missing required query parameter '$key'")
 }

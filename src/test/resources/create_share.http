@@ -1,0 +1,2 @@
+POST http://localhost:8080/share/test
+Authorization: Basic user password  // Expects you use "user" and "password"

@@ -10,7 +10,7 @@ object Migrations {
 
     transaction {
       if (SchemaUtils.listTables().isEmpty()) {
-        SchemaUtils.create(GeneratedCalendar, InputCalendar, Share)
+        SchemaUtils.create(GeneratedCalendars, InputCalendars, Shares)
         logger.info("Created DB")
       }
     }

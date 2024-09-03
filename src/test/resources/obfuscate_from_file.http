@@ -1,0 +1,5 @@
+POST http://localhost:8080/obfuscate/test?timezone=Europe/Berlin&timeframe-start=2024-08-26&timeframe-end=2024-08-31&sections=[[0800, 1200], [1200, 1800], [1800, 2359]]
+Authorization: Basic user password  // Expects you use "user" and "password"
+Content-Type: text/calendar
+
+< ./test.ics

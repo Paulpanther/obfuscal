@@ -7,6 +7,7 @@ plugins {
   application
   kotlin("jvm") version "2.0.0"
   id("io.ktor.plugin") version "2.3.12"
+  kotlin("plugin.serialization") version "2.0.20"
 }
 
 group = "com.paulmethfessel"
@@ -28,6 +29,7 @@ dependencies {
 
   // DB & ORM
   implementation("org.jetbrains.exposed:exposed-core:$exposed_version")
+  implementation("org.jetbrains.exposed:exposed-dao:$exposed_version")
   implementation("org.jetbrains.exposed:exposed-jdbc:$exposed_version")
   implementation("org.jetbrains.exposed:exposed-java-time:$exposed_version")
   implementation("org.xerial:sqlite-jdbc:3.46.1.0")
@@ -47,6 +49,8 @@ dependencies {
   implementation("io.ktor:ktor-server-netty-jvm")
   implementation("ch.qos.logback:logback-classic:$logback_version")
   implementation("io.ktor:ktor-server-config-yaml:$ktor_version")
+  implementation("io.ktor:ktor-server-auth:$ktor_version")
+
 
   // testing
   testImplementation(kotlin("test"))

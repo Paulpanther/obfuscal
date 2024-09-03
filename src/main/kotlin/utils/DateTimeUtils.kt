@@ -1,5 +1,10 @@
 package utils
 
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializer
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -7,6 +12,7 @@ import java.time.LocalTime
 import java.time.Period
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
 import java.time.temporal.Temporal
 
 data class LocalTimeSlice(
@@ -58,5 +64,21 @@ fun dateTimeOrZonedDateTimeToTimezone(input: Temporal, zone: ZoneId, dateToDateT
     dateToDateTime(input)
   } else {
     (input as ZonedDateTime).withZoneSameInstant(zone).toLocalDateTime()
+  }
+}
+
+@OptIn(ExperimentalSerializationApi::class)
+@Serializer(forClass = LocalDateTime::class)
+object DateTimeSerializer : KSerializer<LocalDateTime?> {
+  private val formatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME
+
+  override fun serialize(encoder: Encoder, value: LocalDateTime?) {
+    encoder.encodeString(value?.format(formatter) ?: "null")
+  }
+
+  override fun deserialize(decoder: Decoder): LocalDateTime? {
+    val raw = decoder.decodeString()
+    if (raw == "null") return null
+    return LocalDateTime.parse(raw, formatter)
   }
 }

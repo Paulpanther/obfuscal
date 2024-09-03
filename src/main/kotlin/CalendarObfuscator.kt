@@ -20,6 +20,7 @@ import utils.LocalDateSlice
 import utils.LocalDateTimeSlice
 import utils.LocalTimeSlice
 import utils.dateTimeOrZonedDateTimeToTimezone
+import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.io.OutputStream
 import java.time.LocalDate
@@ -148,4 +149,10 @@ private operator fun Calendar.plusAssign(component: CalendarComponent) {
 
 fun Calendar.writeTo(stream: OutputStream) {
   CalendarOutputter().output(this, stream)
+}
+
+fun Calendar.toByteArray(): ByteArray {
+  return ByteArrayOutputStream()
+    .also { writeTo(it) }
+    .toByteArray()
 }
