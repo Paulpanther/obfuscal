@@ -53,6 +53,8 @@ fun main() {
 fun Application.module() {
   install(CORS) {
     allowHost("localhost:1234")  // Debug client
+    allowMethod(HttpMethod.Options)
+    allowMethod(HttpMethod.Delete)
     allowCredentials = true
   }
 
@@ -137,9 +139,9 @@ fun Application.configureRouting() {
       }
 
       route("/share") {
-        post("/{calendar}") {
+        post {
           // TODO expires
-          val share = ShareController.create(call.pathParam("calendar"))
+          val share = ShareController.create(call.queryParam("calendar"))
           call.respond(share.toShareData())
         }
 
@@ -152,6 +154,10 @@ fun Application.configureRouting() {
           val share = ShareController.get(call.pathParam("name"))
             ?: throw NotFoundException()
           call.respond(share.toShareData())
+        }
+
+        options("/{name}") {
+          call.respond(HttpStatusCode.OK)
         }
 
         delete("/{name}") {
@@ -211,6 +217,10 @@ fun Application.configureRouting() {
         get("/{name}") {
           val calendar = CalendarController.get(call.pathParam("name"))
           call.respond(calendar.toData())
+        }
+
+        options("/{name}") {
+          call.respond(HttpStatusCode.OK)
         }
 
         delete("/{name}") {
