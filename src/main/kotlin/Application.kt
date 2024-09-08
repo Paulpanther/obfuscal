@@ -11,12 +11,16 @@ import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.engine.*
 import io.ktor.server.netty.*
+import io.ktor.server.plugins.*
 import io.ktor.server.plugins.contentnegotiation.*
+import io.ktor.server.plugins.cors.routing.*
 import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.server.sessions.*
 import kotlinx.serialization.json.Json
+import org.apache.logging.log4j.LogManager
 import org.jetbrains.exposed.sql.Database
 import utils.LocalDateSlice
 import utils.LocalTimeSlice
@@ -36,29 +40,61 @@ private val user = System.getenv("USER") ?: error("No USER env variable")
 private val password = System.getenv("PASSWORD") ?: error("No PASSWORD env variable")
 private val isDev = System.getenv("DEV") == "true"
 
+private val logger = LogManager.getLogger(Application::class.java)
+
 fun main() {
   Database.connect("jdbc:sqlite:obfuscal.db")
   Migrations.init()
 
-  embeddedServer(Netty, port = 8080, host = "0.0.0.0", module = Application::module)
+  embeddedServer(Netty, port = 8080, host = "localhost", module = Application::module)
     .start(wait = true)
 }
 
 fun Application.module() {
+  install(CORS) {
+    allowHost("localhost:1234")  // Debug client
+    allowCredentials = true
+  }
+
   install(ContentNegotiation) {
     json()
   }
 
   install(Authentication) {
-    basic("auth-write") {
-      realm = "Access to write operations"
+    form("auth-form") {
+      userParamName = "username"
+      passwordParamName = "password"
       validate { credentials ->
         if (credentials.name == user && credentials.password == password) {
+          logger.info("Logged in user ${credentials.name}")
           UserIdPrincipal(credentials.name)
         } else {
           null
         }
       }
+      challenge {
+        call.respond(HttpStatusCode.Unauthorized)
+      }
+    }
+
+    session<UserSession>("auth-session") {
+      validate { session ->
+        if (session.username == user) {
+          session
+        } else {
+          null
+        }
+      }
+      challenge {
+        call.respond(HttpStatusCode.Unauthorized)
+      }
+    }
+  }
+
+  install(Sessions) {
+    cookie<UserSession>("user_session", SessionStorageMemory()) {
+      cookie.path = "/"
+      cookie.maxAgeInSeconds = 60 * 30
     }
   }
 
@@ -68,12 +104,15 @@ fun Application.module() {
 fun Application.configureRouting() {
   install(StatusPages) {
     exception<IllegalArgumentException> { call, cause ->
-      call.respond(HttpStatusCode.BadRequest, cause.message?.let { "Error parsing given information: ${cause.message}" } ?: "Input could not be handled")
+      call.respond(
+        HttpStatusCode.BadRequest,
+        cause.message?.let { "Error parsing given information: ${cause.message}" } ?: "Input could not be handled")
     }
 
     exception<Exception> { call, cause ->
+      cause.printStackTrace()
       if (isDev) {
-        call.respond(HttpStatusCode.InternalServerError, cause.stackTrace)
+        call.respond(HttpStatusCode.InternalServerError, cause.toString())
       } else {
         call.response.status(HttpStatusCode.InternalServerError)
       }
@@ -86,17 +125,33 @@ fun Application.configureRouting() {
       call.respondCalendar(calendar)
     }
 
-    authenticate("auth-write") {
+    get("/logout") {
+      call.sessions.clear<UserSession>()
+    }
+
+    authenticate("auth-form", "auth-session") {
+      post("/login") {
+        val userName = call.principal<UserIdPrincipal>()?.name.toString()
+        call.sessions.set(UserSession(userName))
+        call.respond(HttpStatusCode.OK)
+      }
+
       route("/share") {
         post("/{calendar}") {
           // TODO expires
           val share = ShareController.create(call.pathParam("calendar"))
-          call.respondText(share.name)
+          call.respond(share.toShareData())
         }
 
         get {
           val shares = ShareController.list()
           call.respond(shares.map { it.toShareData() })
+        }
+
+        get("/{name}") {
+          val share = ShareController.get(call.pathParam("name"))
+            ?: throw NotFoundException()
+          call.respond(share.toShareData())
         }
 
         delete("/{name}") {
@@ -106,9 +161,9 @@ fun Application.configureRouting() {
       }
 
       route("/obfuscate") {
-        post("/{name}") {
+        post {
           val contentType = call.request.contentType()
-          val name = call.parameters["name"] ?: throw IllegalArgumentException("Missing path param 'name'")
+          val name = call.queryParam("name")
 
           val timezone = try {
             ZoneId.of(call.queryParam("timezone"))
@@ -125,34 +180,37 @@ fun Application.configureRouting() {
 
           val streams = when {
             call.request.isMultipart() -> {
-                call.receiveMultipart()
-                  .readAllParts()
-                  .filterIsInstance<PartData.FileItem>()
-                  .map { it.streamProvider() }
+              call.receiveMultipart()
+                .readAllParts()
+                .filterIsInstance<PartData.FileItem>()
+                .map { it.streamProvider() }
             }
+
             contentType == ics -> {
               listOf(call.receiveStream())
             }
+
             contentType == ContentType.parse("application/json") -> {
               call.receive<List<String>>().map { fetchCalendar(it) }
             }
+
             else ->
               throw IllegalArgumentException("Only accepts calendar files with content type $ics, actual content type $contentType")
           }
 
-          CalendarController.create(name, streams, timezone, timeframe, sections)
+          val calendar = CalendarController.create(name, streams, timezone, timeframe, sections)
 
-          call.response.status(HttpStatusCode.OK)
+          call.respond(calendar.toData())
         }
 
         get {
           val calendars = CalendarController.list()
-          call.respond(calendars.map { it.name })
+          call.respond(calendars.map { it.toData() })
         }
 
         get("/{name}") {
           val calendar = CalendarController.get(call.pathParam("name"))
-          call.respondCalendar(calendar)
+          call.respond(calendar.toData())
         }
 
         delete("/{name}") {
@@ -216,7 +274,10 @@ private fun parseTime(str: String): LocalTime {
 
 private suspend fun ApplicationCall.respondCalendar(calendar: GeneratedCalendar) {
   val filename = "${calendar.name}.ics"
-  response.header(HttpHeaders.ContentDisposition, ContentDisposition.Attachment.withParameter(ContentDisposition.Parameters.FileName, filename).toString())
+  response.header(
+    HttpHeaders.ContentDisposition,
+    ContentDisposition.Attachment.withParameter(ContentDisposition.Parameters.FileName, filename).toString()
+  )
   respondOutputStream(ics, HttpStatusCode.OK) {
     write(calendar.content)
   }

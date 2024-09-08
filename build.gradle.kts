@@ -26,6 +26,8 @@ dependencies {
   // Logger
   implementation("org.apache.logging.log4j:log4j-core:2.23.1")
   implementation("org.apache.logging.log4j:log4j-slf4j-impl:2.23.1")
+  // TODO can I delete this?!
+  implementation("ch.qos.logback:logback-classic:$logback_version")
 
   // DB & ORM
   implementation("org.jetbrains.exposed:exposed-core:$exposed_version")
@@ -47,10 +49,10 @@ dependencies {
   implementation("io.ktor:ktor-server-status-pages:$ktor_version")
   implementation("io.ktor:ktor-server-core-jvm")
   implementation("io.ktor:ktor-server-netty-jvm")
-  implementation("ch.qos.logback:logback-classic:$logback_version")
   implementation("io.ktor:ktor-server-config-yaml:$ktor_version")
   implementation("io.ktor:ktor-server-auth:$ktor_version")
-
+  implementation("io.ktor:ktor-server-cors:$ktor_version")
+  implementation("io.ktor:ktor-server-sessions:$ktor_version")
 
   // testing
   testImplementation(kotlin("test"))

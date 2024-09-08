@@ -9,7 +9,8 @@ object ShareController {
   fun create(calendarName: String): Share {
     return transaction {
       val name = UUID.randomUUID().toString()
-      val calendar = GeneratedCalendar.find { GeneratedCalendars.name eq calendarName }.firstOrNull() ?: throw IllegalArgumentException("No calendar with Name '$calendarName'")
+      val calendar = GeneratedCalendar.find { GeneratedCalendars.name eq calendarName }.firstOrNull()
+        ?: throw IllegalArgumentException("No calendar with Name '$calendarName'")
 
       val existingShare = Share.find { Shares.name eq name }.firstOrNull()
       if (existingShare != null) throw IllegalArgumentException("Share with that name already exists, delete it first")
@@ -24,6 +25,12 @@ object ShareController {
   fun list(): List<Share> {
     return transaction {
       Share.all().toList()
+    }
+  }
+
+  fun get(name: String): Share? {
+    return transaction {
+      Share.find { Shares.name eq name }.firstOrNull()
     }
   }
 

@@ -45,3 +45,4 @@ bin/
 *.db
 
 .env
+src/main/resources/users.properties

@@ -7,7 +7,13 @@ import java.io.InputStream
 import java.time.ZoneId
 
 object CalendarController {
-  fun create(name: String, streams: List<InputStream>, timezone: ZoneId, timeframe: LocalDateSlice, sections: List<LocalTimeSlice>) {
+  fun create(
+    name: String,
+    streams: List<InputStream>,
+    timezone: ZoneId,
+    timeframe: LocalDateSlice,
+    sections: List<LocalTimeSlice>
+  ): GeneratedCalendar {
     transaction {
       if (!GeneratedCalendar.find { GeneratedCalendars.name eq name }.empty()) {
         throw IllegalArgumentException("Calendar with this name does already exist. Delete it first")
@@ -18,7 +24,7 @@ object CalendarController {
       .fromStreams(streams, timezone, timeframe, sections)
       .obfuscate()
 
-    transaction {
+    return transaction {
       GeneratedCalendar.new {
         this.name = name
         this.content = cal.toByteArray()
@@ -34,13 +40,15 @@ object CalendarController {
 
   fun get(name: String): GeneratedCalendar {
     return transaction {
-      GeneratedCalendar.find { GeneratedCalendars.name eq name }.firstOrNull() ?: throw IllegalArgumentException("Calendar with this name does not exist")
+      GeneratedCalendar.find { GeneratedCalendars.name eq name }.firstOrNull()
+        ?: throw IllegalArgumentException("Calendar with this name does not exist")
     }
   }
 
   fun delete(name: String): Boolean {
     return transaction {
-      val calendar = GeneratedCalendar.find { GeneratedCalendars.name eq name }.firstOrNull() ?: return@transaction false
+      val calendar =
+        GeneratedCalendar.find { GeneratedCalendars.name eq name }.firstOrNull() ?: return@transaction false
       calendar.delete()
       true
     }

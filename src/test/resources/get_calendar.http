@@ -1,0 +1,2 @@
+GET http://localhost:8080/obfuscate/test
+Authorization: Basic user password  // Expects you use "user" and "password"
