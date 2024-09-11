@@ -28,7 +28,7 @@ data class LocalDateSlice(
   val start: LocalDate,
   val end: LocalDate,
 ) {
-  constructor(start: LocalDate, period: Period): this(start, start + period)
+  constructor(start: LocalDate, period: Period) : this(start, start + period)
 
   fun toICal4jPeriod() = net.fortuna.ical4j.model.Period(start, end)
 
@@ -59,11 +59,20 @@ fun LocalDate.atEndOfDay(): LocalDateTime {
   return plusDays(1).atStartOfDay()
 }
 
-fun dateTimeOrZonedDateTimeToTimezone(input: Temporal, zone: ZoneId, dateToDateTime: (date: LocalDate) -> LocalDateTime): LocalDateTime {
-  return if (input is LocalDate) {
-    dateToDateTime(input)
-  } else {
-    (input as ZonedDateTime).withZoneSameInstant(zone).toLocalDateTime()
+/**
+ * Convert given input time to be in the given timezone
+ */
+fun dateTimeOrZonedDateTimeToTimezone(
+  input: Temporal,
+  zone: ZoneId,
+  dateToDateTime: (date: LocalDate) -> LocalDateTime
+): LocalDateTime {
+  return when (input) {
+    is LocalDate -> dateToDateTime(input)
+    is LocalDateTime -> input
+    else -> {
+      (input as ZonedDateTime).withZoneSameInstant(zone).toLocalDateTime()
+    }
   }
 }
 

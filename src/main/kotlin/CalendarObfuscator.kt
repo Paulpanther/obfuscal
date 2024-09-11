@@ -38,15 +38,26 @@ class CalendarObfuscator(
 ) {
   private val copiableProperties = listOf(
     DtStart::class.java, DtEnd::class.java, DtStamp::class.java, Duration::class.java,
-    Summary::class.java, RRule::class.java)
+    Summary::class.java, RRule::class.java
+  )
 
   companion object {
-    fun fromStream(stream: InputStream, timezone: ZoneId, timeframe: LocalDateSlice, sectionsPerDay: List<LocalTimeSlice>): CalendarObfuscator {
+    fun fromStream(
+      stream: InputStream,
+      timezone: ZoneId,
+      timeframe: LocalDateSlice,
+      sectionsPerDay: List<LocalTimeSlice>
+    ): CalendarObfuscator {
       val calendar = CalendarBuilder().build(stream)
       return CalendarObfuscator(listOf(calendar), timezone, timeframe, sectionsPerDay)
     }
 
-    fun fromStreams(stream: List<InputStream>, timezone: ZoneId, timeframe: LocalDateSlice, sectionsPerDay: List<LocalTimeSlice>): CalendarObfuscator {
+    fun fromStreams(
+      stream: List<InputStream>,
+      timezone: ZoneId,
+      timeframe: LocalDateSlice,
+      sectionsPerDay: List<LocalTimeSlice>
+    ): CalendarObfuscator {
       val calendars = stream.map { CalendarBuilder().build(it) }
       return CalendarObfuscator(calendars, timezone, timeframe, sectionsPerDay)
     }
@@ -86,6 +97,7 @@ class CalendarObfuscator(
       val occurrences = event
         .calculateRecurrenceSet<Temporal>(timeframe.toLocalDateTimeSlice().toICal4jPeriod())
         .map {
+          // Events can be in different timezones. After these two calls all times will be in the timezone given by the user
           val start = dateTimeOrZonedDateTimeToTimezone(it.start, timezone, LocalDate::atStartOfDay)
           val end = dateTimeOrZonedDateTimeToTimezone(it.end, timezone, LocalDate::atStartOfDay)
           LocalDateTimeSlice(start, end)

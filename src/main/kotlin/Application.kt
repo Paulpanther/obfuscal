@@ -43,7 +43,9 @@ private val isDev = System.getenv("DEV") == "true"
 private val logger = LogManager.getLogger(Application::class.java)
 
 fun main() {
-  Database.connect("jdbc:sqlite:obfuscal.db")
+  Database.connect("jdbc:sqlite:obfuscal.db", setupConnection = { connection ->
+    connection.createStatement().executeUpdate("PRAGMA foreign_keys = ON")
+  })
   Migrations.init()
 
   embeddedServer(Netty, port = 8080, host = "localhost", module = Application::module)
@@ -55,6 +57,7 @@ fun Application.module() {
     allowHost("localhost:1234")  // Debug client
     allowMethod(HttpMethod.Options)
     allowMethod(HttpMethod.Delete)
+    allowHeader("Content-Type")
     allowCredentials = true
   }
 
@@ -63,6 +66,16 @@ fun Application.module() {
   }
 
   install(Authentication) {
+    basic("auth-basic") {
+      validate { credentials ->
+        if (credentials.name == user && credentials.password == password) {
+          UserIdPrincipal(credentials.name)
+        } else {
+          null
+        }
+      }
+    }
+
     form("auth-form") {
       userParamName = "username"
       passwordParamName = "password"
@@ -137,7 +150,9 @@ fun Application.configureRouting() {
         call.sessions.set(UserSession(userName))
         call.respond(HttpStatusCode.OK)
       }
+    }
 
+    authenticate("auth-session", "auth-basic") {
       route("/share") {
         post {
           // TODO expires
