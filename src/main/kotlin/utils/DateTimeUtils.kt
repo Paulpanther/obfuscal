@@ -78,7 +78,7 @@ fun dateTimeOrZonedDateTimeToTimezone(
 
 @OptIn(ExperimentalSerializationApi::class)
 @Serializer(forClass = LocalDateTime::class)
-object DateTimeSerializer : KSerializer<LocalDateTime?> {
+object NullableDateTimeSerializer : KSerializer<LocalDateTime?> {
   private val formatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME
 
   override fun serialize(encoder: Encoder, value: LocalDateTime?) {
@@ -88,6 +88,21 @@ object DateTimeSerializer : KSerializer<LocalDateTime?> {
   override fun deserialize(decoder: Decoder): LocalDateTime? {
     val raw = decoder.decodeString()
     if (raw == "null") return null
+    return LocalDateTime.parse(raw, formatter)
+  }
+}
+
+@OptIn(ExperimentalSerializationApi::class)
+@Serializer(forClass = LocalDateTime::class)
+object DateTimeSerializer : KSerializer<LocalDateTime> {
+  private val formatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME
+
+  override fun serialize(encoder: Encoder, value: LocalDateTime) {
+    encoder.encodeString(value.format(formatter))
+  }
+
+  override fun deserialize(decoder: Decoder): LocalDateTime {
+    val raw = decoder.decodeString()
     return LocalDateTime.parse(raw, formatter)
   }
 }

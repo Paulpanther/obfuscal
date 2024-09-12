@@ -136,8 +136,13 @@ fun Application.configureRouting() {
 
   routing {
     get("/{share}") {
+      val useJson = call.request.queryParameters["json"] == "true"
       val calendar = ShareController.getCalendarFromShare(call.pathParam("share"))
-      call.respondCalendar(calendar)
+      if (useJson) {
+        call.respond(Calendar2Json(calendar.content).convert())
+      } else {
+        call.respondCalendar(calendar)
+      }
     }
 
     get("/logout") {

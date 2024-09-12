@@ -3,16 +3,9 @@ import net.fortuna.ical4j.data.CalendarOutputter
 import net.fortuna.ical4j.model.Calendar
 import net.fortuna.ical4j.model.Component
 import net.fortuna.ical4j.model.Property
-import net.fortuna.ical4j.model.PropertyList
 import net.fortuna.ical4j.model.component.CalendarComponent
 import net.fortuna.ical4j.model.component.VEvent
-import net.fortuna.ical4j.model.property.DtEnd
-import net.fortuna.ical4j.model.property.DtStamp
-import net.fortuna.ical4j.model.property.DtStart
-import net.fortuna.ical4j.model.property.Duration
 import net.fortuna.ical4j.model.property.ProdId
-import net.fortuna.ical4j.model.property.RRule
-import net.fortuna.ical4j.model.property.Summary
 import net.fortuna.ical4j.model.property.Uid
 import net.fortuna.ical4j.model.property.immutable.ImmutableCalScale
 import net.fortuna.ical4j.model.property.immutable.ImmutableVersion
@@ -28,6 +21,7 @@ import java.time.ZoneId
 import java.time.temporal.Temporal
 import java.util.*
 import java.util.stream.LongStream
+import kotlin.jvm.optionals.getOrNull
 import kotlin.streams.toList
 
 class CalendarObfuscator(
@@ -36,10 +30,6 @@ class CalendarObfuscator(
   private val timeframe: LocalDateSlice,
   private val sectionsPerDay: List<LocalTimeSlice>
 ) {
-  private val copiableProperties = listOf(
-    DtStart::class.java, DtEnd::class.java, DtStamp::class.java, Duration::class.java,
-    Summary::class.java, RRule::class.java
-  )
 
   companion object {
     fun fromStream(
@@ -94,14 +84,8 @@ class CalendarObfuscator(
         continue
       }
 
-      val occurrences = event
-        .calculateRecurrenceSet<Temporal>(timeframe.toLocalDateTimeSlice().toICal4jPeriod())
-        .map {
-          // Events can be in different timezones. After these two calls all times will be in the timezone given by the user
-          val start = dateTimeOrZonedDateTimeToTimezone(it.start, timezone, LocalDate::atStartOfDay)
-          val end = dateTimeOrZonedDateTimeToTimezone(it.end, timezone, LocalDate::atStartOfDay)
-          LocalDateTimeSlice(start, end)
-        }
+      val occurrences = calculateOccurrences(event)
+
       // skip if occurrences are all outside of timeframe
       if (!occurrences.any { timeframe.toLocalDateTimeSlice().intersectsOrContains(it) }) continue
 
@@ -124,11 +108,16 @@ class CalendarObfuscator(
 
     // Add fully shown events
     for (event in showFully) {
-      // Only copy allowed properties
-      val props = event
-        .getProperties<Property>()
-        .filter { copiableProperties.contains(it.javaClass) }
-      finalEvents += VEvent(PropertyList(props))
+      for (occurrences in calculateOccurrences(event)) {
+        val isMultiDay = event.getDateTimeStart<Temporal>().getOrNull()?.date is LocalDate
+        finalEvents += VEvent(
+          if (isMultiDay) occurrences.start.toLocalDate() else occurrences.start,
+          if (isMultiDay) occurrences.end.toLocalDate() else occurrences.end,
+          event.summary.orElse(null)?.value ?: ""
+        ).also {
+          it.add<VEvent>(Uid(UUID.randomUUID().toString()))
+        }
+      }
     }
 
     // Add busy sections
@@ -148,6 +137,17 @@ class CalendarObfuscator(
     calendar += ImmutableCalScale.GREGORIAN
     events.forEach { calendar += it }
     return calendar
+  }
+
+  private fun calculateOccurrences(event: VEvent): List<LocalDateTimeSlice> {
+    return event
+      .calculateRecurrenceSet<Temporal>(timeframe.toLocalDateTimeSlice().toICal4jPeriod())
+      .map {
+        // Events can be in different timezones. After these two calls all times will be in the timezone given by the user
+        val start = dateTimeOrZonedDateTimeToTimezone(it.start, timezone, LocalDate::atStartOfDay)
+        val end = dateTimeOrZonedDateTimeToTimezone(it.end, timezone, LocalDate::atStartOfDay)
+        LocalDateTimeSlice(start, end)
+      }
   }
 }
 

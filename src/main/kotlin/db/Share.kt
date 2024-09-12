@@ -8,7 +8,7 @@ import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.ReferenceOption
 import org.jetbrains.exposed.sql.javatime.datetime
 import org.jetbrains.exposed.sql.transactions.transaction
-import utils.DateTimeSerializer
+import utils.NullableDateTimeSerializer
 import java.time.LocalDateTime
 
 object Shares : IntIdTable("share") {
@@ -30,7 +30,7 @@ class Share(id: EntityID<Int>) : IntEntity(id) {
 @Serializable
 data class ShareData(
   val name: String,
-  @Serializable(with = DateTimeSerializer::class)
+  @Serializable(with = NullableDateTimeSerializer::class)
   val expires: LocalDateTime?,
   val calendar: String
 )
