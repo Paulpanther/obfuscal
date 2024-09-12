@@ -2,13 +2,18 @@ import net.fortuna.ical4j.data.CalendarBuilder
 import net.fortuna.ical4j.data.CalendarOutputter
 import net.fortuna.ical4j.model.Calendar
 import net.fortuna.ical4j.model.Component
+import net.fortuna.ical4j.model.ParameterList
 import net.fortuna.ical4j.model.Property
 import net.fortuna.ical4j.model.component.CalendarComponent
 import net.fortuna.ical4j.model.component.VEvent
+import net.fortuna.ical4j.model.component.VFreeBusy
+import net.fortuna.ical4j.model.parameter.FbType
+import net.fortuna.ical4j.model.property.FreeBusy
 import net.fortuna.ical4j.model.property.ProdId
 import net.fortuna.ical4j.model.property.Uid
 import net.fortuna.ical4j.model.property.immutable.ImmutableCalScale
 import net.fortuna.ical4j.model.property.immutable.ImmutableVersion
+import org.threeten.extra.Interval
 import utils.LocalDateSlice
 import utils.LocalDateTimeSlice
 import utils.LocalTimeSlice
@@ -18,6 +23,7 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.temporal.Temporal
 import java.util.*
 import java.util.stream.LongStream
@@ -67,7 +73,13 @@ class CalendarObfuscator(
       .flatMap { it.getComponents<VEvent>(Component.VEVENT) }
       .filter { it.description.map { !it.value.startsWith("HIDE") }.orElse(true) }
 
-    val busySections = mutableSetOf<LocalDateTimeSlice>()
+    val sectionsInPeriod = LongStream
+      .range(0, timeframe.period.days.toLong())
+      .toList()
+      .map { i -> timeframe.start.plusDays(i) }
+      .flatMap { day -> sectionsPerDay.map { section -> section.atDate(day) } }
+      .associateWith { true }
+      .toMutableMap()
     val showFully = mutableListOf<VEvent>()
 
     // TODO could be parallelized
@@ -90,15 +102,10 @@ class CalendarObfuscator(
       if (!occurrences.any { timeframe.toLocalDateTimeSlice().intersectsOrContains(it) }) continue
 
       for (occurrence in occurrences) {
-        val sectionsInPeriod = LongStream
-          .range(0, occurrence.toDuration().toDays() + 1)
-          .toList()
-          .map { i -> occurrence.start.toLocalDate().plusDays(i) }
-          .flatMap { day -> sectionsPerDay.map { section -> section.atDate(day) } }
 
-        for (section in sectionsInPeriod) {
+        for (section in sectionsInPeriod.filter { it.value }.keys) {
           if (section.intersectsOrContains(occurrence)) {
-            busySections += section
+            sectionsInPeriod[section] = false
           }
         }
       }
@@ -120,22 +127,37 @@ class CalendarObfuscator(
       }
     }
 
+    val frees = mutableListOf<VFreeBusy>()
     // Add busy sections
-    for (section in busySections) {
+    for (section in sectionsInPeriod.filter { it.value }.keys) {
+      frees += VFreeBusy(section.start, section.end).also {
+        it.add<VFreeBusy>(
+          FreeBusy(
+            ParameterList(listOf(FbType.FREE)), listOf(
+              Interval.of(
+                section.start.toInstant(
+                  ZoneOffset.UTC
+                ), section.end.toInstant(ZoneOffset.UTC)
+              )
+            )
+          )
+        )
+      }
       finalEvents += VEvent(section.start, section.end, "").also {
         it.add<VEvent>(Uid(UUID.randomUUID().toString()))
       }
     }
 
-    return buildNewCalendar(finalEvents)
+    return buildNewCalendar(finalEvents, frees)
   }
 
-  private fun buildNewCalendar(events: List<VEvent>): Calendar {
+  private fun buildNewCalendar(events: List<VEvent>, freeBusy: List<VFreeBusy>): Calendar {
     val calendar = Calendar()
     calendar += ProdId("-//Paul Methfessel//Obfuscal 1.0//EN")  // TODO get version from env
     calendar += ImmutableVersion.VERSION_2_0
     calendar += ImmutableCalScale.GREGORIAN
     events.forEach { calendar += it }
+    freeBusy.forEach { calendar += it }
     return calendar
   }
 

@@ -2,6 +2,7 @@ import kotlinx.serialization.Serializable
 import net.fortuna.ical4j.data.CalendarBuilder
 import net.fortuna.ical4j.model.Calendar
 import net.fortuna.ical4j.model.component.VEvent
+import net.fortuna.ical4j.model.component.VFreeBusy
 import java.time.LocalDate
 import java.time.temporal.Temporal
 import kotlin.jvm.optionals.getOrNull
@@ -14,6 +15,8 @@ class Calendar2Json private constructor(
 
   fun convert(): JCalendar {
     val events = calendar.getComponents<VEvent>()
+    val freeBusy = calendar.getComponents<VFreeBusy>()
+
     // We don't use rrules in obfuscator, so we can just copy events here :)
     val jEvents = events.map {
       val start = it.getDateTimeStart<Temporal>().get().date
@@ -22,13 +25,20 @@ class Calendar2Json private constructor(
       JEvent(start.toString(), end.toString(), it.summary.getOrNull()?.value ?: "", isMultiDay)
     }
 
-    return JCalendar(jEvents)
+    val jFreeBusy = freeBusy.map {
+      val start = it.getDateTimeStart<Temporal>().get().date
+      val end = it.getDateTimeEnd<Temporal>().get().date
+      JFreeBusy(start.toString(), end.toString())
+    }
+
+    return JCalendar(jEvents, jFreeBusy)
   }
 }
 
 @Serializable
 data class JCalendar(
   val events: List<JEvent>,
+  val freeBusy: List<JFreeBusy>
 )
 
 @Serializable
@@ -37,4 +47,10 @@ data class JEvent(
   val end: String,
   val summary: String,
   val isMultiDay: Boolean
+)
+
+@Serializable
+data class JFreeBusy(
+  val start: String,
+  val end: String,
 )
