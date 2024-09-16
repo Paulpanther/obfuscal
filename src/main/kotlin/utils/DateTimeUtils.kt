@@ -94,15 +94,15 @@ object NullableDateTimeSerializer : KSerializer<LocalDateTime?> {
 
 @OptIn(ExperimentalSerializationApi::class)
 @Serializer(forClass = LocalDateTime::class)
-object DateTimeSerializer : KSerializer<LocalDateTime> {
-  private val formatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME
+object TimeSerializer : KSerializer<LocalTime> {
+  private val formatter = DateTimeFormatter.ISO_LOCAL_TIME
 
-  override fun serialize(encoder: Encoder, value: LocalDateTime) {
+  override fun serialize(encoder: Encoder, value: LocalTime) {
     encoder.encodeString(value.format(formatter))
   }
 
-  override fun deserialize(decoder: Decoder): LocalDateTime {
+  override fun deserialize(decoder: Decoder): LocalTime {
     val raw = decoder.decodeString()
-    return LocalDateTime.parse(raw, formatter)
+    return LocalTime.parse(raw, formatter)
   }
 }

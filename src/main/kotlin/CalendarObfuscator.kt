@@ -127,9 +127,10 @@ class CalendarObfuscator(
       }
     }
 
+    val combinedSections = combineSections(sectionsInPeriod.filter { it.value }.keys.toList())
     val frees = mutableListOf<VFreeBusy>()
     // Add busy sections
-    for (section in sectionsInPeriod.filter { it.value }.keys) {
+    for (section in combinedSections) {
       frees += VFreeBusy(section.start, section.end).also {
         it.add<VFreeBusy>(
           FreeBusy(
@@ -149,6 +150,24 @@ class CalendarObfuscator(
     }
 
     return buildNewCalendar(finalEvents, frees)
+  }
+
+  private fun combineSections(sections: List<LocalDateTimeSlice>): List<LocalDateTimeSlice> {
+    val combined = mutableListOf<LocalDateTimeSlice>()
+    var lastDay: LocalDate? = null
+
+    for (current in sections.sortedBy { it.start }) {
+      if (lastDay == current.start.toLocalDate()) {
+        val lastSection = combined.last()
+        if (lastSection.end == current.start) {
+          combined[combined.lastIndex] = LocalDateTimeSlice(lastSection.start, current.end)
+        }
+      } else {
+        lastDay = current.start.toLocalDate()
+        combined += current
+      }
+    }
+    return combined
   }
 
   private fun buildNewCalendar(events: List<VEvent>, freeBusy: List<VFreeBusy>): Calendar {

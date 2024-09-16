@@ -20,6 +20,8 @@ object CalendarController {
       }
     }
 
+    val startTime = sections.first().start
+    val endTime = sections.last().end
     val cal = CalendarObfuscator
       .fromStreams(streams, timezone, timeframe, sections)
       .obfuscate()
@@ -28,6 +30,8 @@ object CalendarController {
       GeneratedCalendar.new {
         this.name = name
         this.content = cal.toByteArray()
+        this.startOfDay = startTime
+        this.endOfDay = endTime
       }
     }
   }

@@ -38,7 +38,7 @@ object ShareController {
     return transaction {
       val share = Share.find { Shares.name eq shareId }.firstOrNull()
         ?: throw IllegalArgumentException("Share with given id '$shareId' does not exist")
-      GeneratedCalendar[share.calendar]
+      GeneratedCalendar.findById(share.calendar) ?: throw IllegalArgumentException("Share '$shareId' is invalid")
     }
   }
 

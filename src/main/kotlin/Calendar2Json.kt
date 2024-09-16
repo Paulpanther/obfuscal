@@ -3,6 +3,7 @@ import net.fortuna.ical4j.data.CalendarBuilder
 import net.fortuna.ical4j.model.Calendar
 import net.fortuna.ical4j.model.component.VEvent
 import net.fortuna.ical4j.model.component.VFreeBusy
+import utils.filterComponents
 import java.time.LocalDate
 import java.time.temporal.Temporal
 import kotlin.jvm.optionals.getOrNull
@@ -14,8 +15,8 @@ class Calendar2Json private constructor(
   constructor(bytes: ByteArray) : this(CalendarBuilder().build(bytes.inputStream()))
 
   fun convert(): JCalendar {
-    val events = calendar.getComponents<VEvent>()
-    val freeBusy = calendar.getComponents<VFreeBusy>()
+    val events = calendar.filterComponents<VEvent>()
+    val freeBusy = calendar.filterComponents<VFreeBusy>()
 
     // We don't use rrules in obfuscator, so we can just copy events here :)
     val jEvents = events.map {
