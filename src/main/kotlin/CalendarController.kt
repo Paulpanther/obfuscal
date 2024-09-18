@@ -1,14 +1,32 @@
 import db.GeneratedCalendar
 import db.GeneratedCalendars
+import db.InputCalendar
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.sql.transactions.transaction
 import utils.LocalDateSlice
 import utils.LocalTimeSlice
 import java.io.InputStream
+import java.time.LocalDateTime
 import java.time.ZoneId
 
 object CalendarController {
+  fun regenerate(
+    calendar: GeneratedCalendar,
+    streams: List<InputStream>,
+  ) {
+    transaction {
+      val cal = CalendarObfuscator
+        .fromStreams(streams, calendar.timezoneId, calendar.timeframe, calendar.sectionList)
+        .obfuscate()
+      calendar.content = cal.toByteArray()
+      calendar.lastChanged = LocalDateTime.now()
+    }
+  }
+
   fun create(
     name: String,
+    urls: List<String>?,
     streams: List<InputStream>,
     timezone: ZoneId,
     timeframe: LocalDateSlice,
@@ -26,14 +44,32 @@ object CalendarController {
       .fromStreams(streams, timezone, timeframe, sections)
       .obfuscate()
 
-    return transaction {
+    val generatedCalendar = transaction {
       GeneratedCalendar.new {
         this.name = name
         this.content = cal.toByteArray()
         this.startOfDay = startTime
         this.endOfDay = endTime
+        this.startDate = timeframe.start
+        this.endDate = timeframe.end
+        this.timezone = timezone.id
+        this.sections = Json.encodeToString(sections)
+        this.lastChanged = LocalDateTime.now()
       }
     }
+
+    if (urls != null) {
+      transaction {
+        for (url in urls) {
+          InputCalendar.new {
+            this.url = url
+            this.generate = generatedCalendar.id
+          }
+        }
+      }
+    }
+
+    return generatedCalendar
   }
 
   fun list(): List<GeneratedCalendar> {

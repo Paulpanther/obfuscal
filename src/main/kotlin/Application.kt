@@ -1,4 +1,6 @@
 import db.GeneratedCalendar
+import db.InputCalendar
+import db.InputCalendars
 import db.Migrations
 import io.ktor.client.*
 import io.ktor.client.engine.cio.*
@@ -19,16 +21,12 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.sessions.*
-import kotlinx.serialization.json.Json
 import org.apache.logging.log4j.LogManager
 import org.jetbrains.exposed.sql.Database
+import org.jetbrains.exposed.sql.transactions.transaction
 import utils.LocalDateSlice
-import utils.LocalTimeSlice
 import java.io.InputStream
-import java.time.DateTimeException
 import java.time.LocalDate
-import java.time.LocalTime
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 
@@ -191,19 +189,16 @@ fun Application.configureRouting() {
           val contentType = call.request.contentType()
           val name = call.queryParam("name")
 
-          val timezone = try {
-            ZoneId.of(call.queryParam("timezone"))
-          } catch (e: DateTimeException) {
-            throw IllegalArgumentException("Given query parameter 'timezone' could not be resolved")
-          }
+          val timezone = GeneratedCalendar.parseTimezone(call.queryParam("timezone"))
 
           val startDate = parseQueryDate(call.request.queryParameters, "timeframe-start")
           val endDate = parseQueryDate(call.request.queryParameters, "timeframe-end")
           if (startDate > endDate) throw IllegalArgumentException("'timeframe-start' must be earlier than 'timeframe-end'")
           val timeframe = LocalDateSlice(startDate, endDate)
 
-          val sections = parseSections(call.request.queryParameters, "sections")
+          val sections = GeneratedCalendar.parseSections(call.queryParam("sections"))
 
+          var urls: List<String>? = null
           val streams = when {
             call.request.isMultipart() -> {
               call.receiveMultipart()
@@ -217,35 +212,54 @@ fun Application.configureRouting() {
             }
 
             contentType == ContentType.parse("application/json") -> {
-              call.receive<List<String>>().map { fetchCalendar(it) }
+              urls = call.receive<List<String>>()
+              urls.map { fetchCalendar(it) }
             }
 
             else ->
               throw IllegalArgumentException("Only accepts calendar files with content type $ics, actual content type $contentType")
           }
 
-          val calendar = CalendarController.create(name, streams, timezone, timeframe, sections)
+          val calendar = CalendarController.create(name, urls, streams, timezone, timeframe, sections)
 
           call.respond(calendar.toData())
         }
+
 
         get {
           val calendars = CalendarController.list()
           call.respond(calendars.map { it.toData() })
         }
 
-        get("/{name}") {
-          val calendar = CalendarController.get(call.pathParam("name"))
-          call.respond(calendar.toData())
-        }
+        route("/{name}") {
+          post("/regenerate") {
+            val calendar = CalendarController.get(call.pathParam("name"))
+            val inputs = transaction { InputCalendar.find { InputCalendars.generated eq calendar.id }.map { it.url } }
+            if (inputs.isEmpty()) {
+              call.respond(HttpStatusCode.NoContent)
+            } else {
+              val streams = inputs.map { fetchCalendar(it) }
+              CalendarController.regenerate(
+                calendar,
+                streams,
+              )
+              call.respond(calendar.toData())
+            }
+          }
 
-        options("/{name}") {
-          call.respond(HttpStatusCode.OK)
-        }
+          get {
+            val calendar = CalendarController.get(call.pathParam("name"))
+            call.respond(calendar.toData())
+          }
 
-        delete("/{name}") {
-          val hasDeleted = CalendarController.delete(call.pathParam("name"))
-          call.response.status(if (hasDeleted) HttpStatusCode.OK else HttpStatusCode.NoContent)
+          options {
+            call.respond(HttpStatusCode.OK)
+          }
+
+          delete {
+            val hasDeleted = CalendarController.delete(call.pathParam("name"))
+            call.response.status(if (hasDeleted) HttpStatusCode.OK else HttpStatusCode.NoContent)
+          }
         }
       }
     }
@@ -264,41 +278,6 @@ private fun parseQueryDate(params: Parameters, key: String): LocalDate {
     return LocalDate.parse(value, DateTimeFormatter.ofPattern("yyyy-MM-dd"))
   } catch (e: DateTimeParseException) {
     throw IllegalArgumentException("Query parameter '$key' could not be parsed as a date. Try using the format yyyy-MM-dd")
-  }
-}
-
-private fun parseSections(params: Parameters, key: String): List<LocalTimeSlice> {
-  val raw = params[key] ?: throw IllegalArgumentException("Missing required query parameter '$key'")
-  val jsonArray = try {
-    Json {
-      isLenient = true
-    }.decodeFromString<Array<Array<String>>>(raw)
-  } catch (e: Exception) {
-    throw IllegalArgumentException("Query parameter '$key' could not be parsed. Format: '[[0800, 1200], [1200, 1800]]'")
-  }
-  if (jsonArray.isEmpty()) throw IllegalArgumentException("Given sections must not be empty")
-  if (jsonArray.any { it.size != 2 }) throw IllegalArgumentException("Each section must have a start and end time")
-
-  val sections = jsonArray.map { (start, end) ->
-    LocalTimeSlice(parseTime(start), parseTime(end))
-      .also {
-        if (it.start > it.end) throw IllegalArgumentException("The start time of a section must be earlier then the end time.")
-      }
-  }.sortedBy { it.start }
-
-  var lastEnd = LocalTime.MIN
-  for (section in sections) {
-    if (section.start < lastEnd) throw IllegalArgumentException("Sections must not be overlapping")
-    lastEnd = section.end
-  }
-  return sections
-}
-
-private fun parseTime(str: String): LocalTime {
-  try {
-    return LocalTime.parse(str, DateTimeFormatter.ofPattern("HHmm"))
-  } catch (e: Exception) {
-    throw IllegalArgumentException("Could not parse time information from input '$str'. Try format 'HHmm' (4 digits).")
   }
 }
 

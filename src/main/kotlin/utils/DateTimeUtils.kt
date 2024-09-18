@@ -2,6 +2,7 @@ package utils
 
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.Serializer
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
@@ -15,8 +16,11 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.Temporal
 
+@Serializable
 data class LocalTimeSlice(
+  @Serializable(with = TimeSerializer::class)
   val start: LocalTime,
+  @Serializable(with = TimeSerializer::class)
   val end: LocalTime,
 ) {
   fun atDate(date: LocalDate): LocalDateTimeSlice {
@@ -94,6 +98,21 @@ object NullableDateTimeSerializer : KSerializer<LocalDateTime?> {
 
 @OptIn(ExperimentalSerializationApi::class)
 @Serializer(forClass = LocalDateTime::class)
+object DateTimeSerializer : KSerializer<LocalDateTime> {
+  private val formatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME
+
+  override fun serialize(encoder: Encoder, value: LocalDateTime) {
+    encoder.encodeString(value.format(formatter))
+  }
+
+  override fun deserialize(decoder: Decoder): LocalDateTime {
+    val raw = decoder.decodeString()
+    return LocalDateTime.parse(raw, formatter)
+  }
+}
+
+@OptIn(ExperimentalSerializationApi::class)
+@Serializer(forClass = LocalDateTime::class)
 object TimeSerializer : KSerializer<LocalTime> {
   private val formatter = DateTimeFormatter.ISO_LOCAL_TIME
 
@@ -104,5 +123,20 @@ object TimeSerializer : KSerializer<LocalTime> {
   override fun deserialize(decoder: Decoder): LocalTime {
     val raw = decoder.decodeString()
     return LocalTime.parse(raw, formatter)
+  }
+}
+
+@OptIn(ExperimentalSerializationApi::class)
+@Serializer(forClass = LocalDate::class)
+object DateSerializer : KSerializer<LocalDate> {
+  private val formatter = DateTimeFormatter.ISO_DATE
+
+  override fun serialize(encoder: Encoder, value: LocalDate) {
+    encoder.encodeString(value.format(formatter))
+  }
+
+  override fun deserialize(decoder: Decoder): LocalDate {
+    val raw = decoder.decodeString()
+    return LocalDate.parse(raw, formatter)
   }
 }

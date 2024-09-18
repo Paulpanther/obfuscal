@@ -1,4 +1,4 @@
-POST http://localhost:8080/obfuscate?name=test3&timezone=Europe/Berlin&timeframe-start=2024-08-26&timeframe-end=2024-08-31&sections=[[0800, 1200], [1200, 1800], [1800, 2300]]
+POST http://localhost:8080/obfuscate?name=test3&timezone=Europe/Berlin&timeframe-start=2024-08-26&timeframe-end=2024-08-31&sections=[["08:00", "12:00"], ["12:00", "18:00"], ["18:00", "23:00"]]
 Authorization: Basic user password  // Expects you use "user" and "password"
 Content-Type: application/json
 
