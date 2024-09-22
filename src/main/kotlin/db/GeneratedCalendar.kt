@@ -11,6 +11,7 @@ import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.javatime.date
 import org.jetbrains.exposed.sql.javatime.datetime
 import org.jetbrains.exposed.sql.javatime.time
+import org.jetbrains.exposed.sql.transactions.transaction
 import utils.DateSerializer
 import utils.DateTimeSerializer
 import utils.LocalDateSlice
@@ -82,6 +83,8 @@ class GeneratedCalendar(id: EntityID<Int>) : IntEntity(id) {
   val timezoneId get() = parseTimezone(timezone)
   val timeframe get() = LocalDateSlice(startDate, endDate)
 
+  val inputCalendars by InputCalendar referrersOn InputCalendars.generated
+
   fun toData() = GeneratedCalendarData(
     name,
     content.toString(Charsets.UTF_8),
@@ -91,7 +94,8 @@ class GeneratedCalendar(id: EntityID<Int>) : IntEntity(id) {
     startDate,
     endDate,
     sections,
-    lastChanged
+    lastChanged,
+    transaction { inputCalendars.map { it.toData() } }
   )
 }
 
@@ -111,4 +115,5 @@ data class GeneratedCalendarData(
   val sections: String,
   @Serializable(with = DateTimeSerializer::class)
   val lastChanged: LocalDateTime,
+  val inputCalendars: List<InputCalendarData>
 )

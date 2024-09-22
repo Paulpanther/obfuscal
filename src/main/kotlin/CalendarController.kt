@@ -52,18 +52,19 @@ object CalendarController {
       calendar.sections = Json.encodeToString(sections)
       calendar.lastChanged = LocalDateTime.now()
 
-      calendar
-    }
 
-    if (urls != null) {
-      transaction {
+      if (urls != null) {
+        existingCalendar?.inputCalendars?.forEach { it.delete() }
+
         for (url in urls) {
           InputCalendar.new {
             this.url = url
-            this.generate = generatedCalendar.id
+            this.generate = calendar
           }
         }
       }
+
+      calendar
     }
 
     return generatedCalendar
