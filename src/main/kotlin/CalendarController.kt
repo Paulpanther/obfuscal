@@ -32,12 +32,6 @@ object CalendarController {
     timeframe: LocalDateSlice,
     sections: List<LocalTimeSlice>
   ): GeneratedCalendar {
-    transaction {
-      if (!GeneratedCalendar.find { GeneratedCalendars.name eq name }.empty()) {
-        throw IllegalArgumentException("Calendar with this name does already exist. Delete it first")
-      }
-    }
-
     val startTime = sections.first().start
     val endTime = sections.last().end
     val cal = CalendarObfuscator
@@ -45,17 +39,20 @@ object CalendarController {
       .obfuscate()
 
     val generatedCalendar = transaction {
-      GeneratedCalendar.new {
-        this.name = name
-        this.content = cal.toByteArray()
-        this.startOfDay = startTime
-        this.endOfDay = endTime
-        this.startDate = timeframe.start
-        this.endDate = timeframe.end
-        this.timezone = timezone.id
-        this.sections = Json.encodeToString(sections)
-        this.lastChanged = LocalDateTime.now()
-      }
+      val existingCalendar = GeneratedCalendar.find { GeneratedCalendars.name eq name }.firstOrNull()
+      val calendar = existingCalendar ?: GeneratedCalendar.new {}
+
+      calendar.name = name
+      calendar.content = cal.toByteArray()
+      calendar.startOfDay = startTime
+      calendar.endOfDay = endTime
+      calendar.startDate = timeframe.start
+      calendar.endDate = timeframe.end
+      calendar.timezone = timezone.id
+      calendar.sections = Json.encodeToString(sections)
+      calendar.lastChanged = LocalDateTime.now()
+
+      calendar
     }
 
     if (urls != null) {

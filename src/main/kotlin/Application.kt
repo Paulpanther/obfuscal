@@ -21,9 +21,9 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.sessions.*
-import org.apache.logging.log4j.LogManager
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.transactions.transaction
+import org.slf4j.LoggerFactory
 import utils.LocalDateSlice
 import java.io.InputStream
 import java.time.LocalDate
@@ -38,7 +38,7 @@ private val user = System.getenv("USER") ?: error("No USER env variable")
 private val password = System.getenv("PASSWORD") ?: error("No PASSWORD env variable")
 private val isDev = System.getenv("DEV") == "true"
 
-private val logger = LogManager.getLogger(Application::class.java)
+private val logger = LoggerFactory.getLogger(Application::class.java)
 
 fun main() {
   Database.connect("jdbc:sqlite:obfuscal.db", setupConnection = { connection ->

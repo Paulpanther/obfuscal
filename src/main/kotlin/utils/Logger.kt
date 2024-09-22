@@ -1,5 +1,7 @@
 package utils
 
-import org.apache.logging.log4j.LogManager
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 
-val <T : Any> T.logger get() = LogManager.getLogger(this::class.java)
+
+val <T : Any> T.logger: Logger get() = LoggerFactory.getLogger(this::class.java)

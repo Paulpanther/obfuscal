@@ -24,10 +24,9 @@ repositories {
 
 dependencies {
   // Logger
-  implementation("org.apache.logging.log4j:log4j-core:2.23.1")
-  implementation("org.apache.logging.log4j:log4j-slf4j-impl:2.23.1")
-  // TODO can I delete this?!
-  implementation("ch.qos.logback:logback-classic:$logback_version")
+  implementation("org.slf4j:slf4j-api:2.0.16")
+  implementation("ch.qos.logback:logback-classic:1.5.8")
+  implementation("ch.qos.logback:logback-core:1.5.8")
 
   // DB & ORM
   implementation("org.jetbrains.exposed:exposed-core:$exposed_version")
