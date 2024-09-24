@@ -74,7 +74,7 @@ class CalendarObfuscator(
       .filter { it.description.map { !it.value.startsWith("HIDE") }.orElse(true) }
 
     val sectionsInPeriod = LongStream
-      .range(0, timeframe.period.days.toLong())
+      .range(0, timeframe.days)
       .toList()
       .map { i -> timeframe.start.plusDays(i) }
       .flatMap { day -> sectionsPerDay.map { section -> section.atDate(day) } }
@@ -143,9 +143,6 @@ class CalendarObfuscator(
             )
           )
         )
-      }
-      finalEvents += VEvent(section.start, section.end, "").also {
-        it.add<VEvent>(Uid(UUID.randomUUID().toString()))
       }
     }
 

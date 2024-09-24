@@ -5,6 +5,7 @@ import net.fortuna.ical4j.model.component.VEvent
 import net.fortuna.ical4j.model.component.VFreeBusy
 import utils.filterComponents
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 import java.time.temporal.Temporal
 import kotlin.jvm.optionals.getOrNull
 
@@ -21,8 +22,9 @@ class Calendar2Json private constructor(
     // We don't use rrules in obfuscator, so we can just copy events here :)
     val jEvents = events.map {
       val start = it.getDateTimeStart<Temporal>().get().date
-      val end = it.getDateTimeEnd<Temporal>().get().date
+      var end = it.getDateTimeEnd<Temporal>().get().date
       val isMultiDay = start is LocalDate
+      if (isMultiDay) end = end.minus(1, ChronoUnit.DAYS)
       JEvent(start.toString(), end.toString(), it.summary.getOrNull()?.value ?: "", isMultiDay)
     }
 

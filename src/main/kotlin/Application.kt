@@ -143,6 +143,14 @@ fun Application.configureRouting() {
       }
     }
 
+    route("/share") {
+      get("/{name}") {
+        val share = ShareController.get(call.pathParam("name"))
+          ?: throw NotFoundException()
+        call.respond(share.toShareData())
+      }
+    }
+
     get("/logout") {
       call.sessions.clear<UserSession>()
     }
@@ -166,12 +174,6 @@ fun Application.configureRouting() {
         get {
           val shares = ShareController.list()
           call.respond(shares.map { it.toShareData() })
-        }
-
-        get("/{name}") {
-          val share = ShareController.get(call.pathParam("name"))
-            ?: throw NotFoundException()
-          call.respond(share.toShareData())
         }
 
         options("/{name}") {

@@ -14,6 +14,7 @@ import java.time.Period
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.time.temporal.Temporal
 
 @Serializable
@@ -38,7 +39,7 @@ data class LocalDateSlice(
 
   fun toLocalDateTimeSlice() = LocalDateTimeSlice(start.atStartOfDay(), end.atEndOfDay())
 
-  val period get() = Period.between(start, end)
+  val days get() = ChronoUnit.DAYS.between(start, end)
 }
 
 data class LocalDateTimeSlice(
