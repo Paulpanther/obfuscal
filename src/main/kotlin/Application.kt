@@ -11,8 +11,6 @@ import io.ktor.http.content.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
-import io.ktor.server.engine.*
-import io.ktor.server.netty.*
 import io.ktor.server.plugins.*
 import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.plugins.cors.routing.*
@@ -40,17 +38,16 @@ private val isDev = System.getenv("DEV") == "true"
 
 private val logger = LoggerFactory.getLogger(Application::class.java)
 
-fun main() {
+fun main(args: Array<String>) {
+  io.ktor.server.netty.EngineMain.main(args)
+}
+
+fun Application.module() {
   Database.connect("jdbc:sqlite:obfuscal.db", setupConnection = { connection ->
     connection.createStatement().executeUpdate("PRAGMA foreign_keys = ON")
   })
   Migrations.init()
 
-  embeddedServer(Netty, port = 8080, host = "localhost", module = Application::module)
-    .start(wait = true)
-}
-
-fun Application.module() {
   install(CORS) {
     allowHost("localhost:1234")  // Debug client
     allowMethod(HttpMethod.Options)
