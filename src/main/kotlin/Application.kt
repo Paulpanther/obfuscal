@@ -44,6 +44,8 @@ fun main(args: Array<String>) {
 }
 
 fun Application.module() {
+  logger.info("Starting")
+
   Database.connect("jdbc:sqlite:obfuscal.db", setupConnection = { connection ->
     connection.createStatement().executeUpdate("PRAGMA foreign_keys = ON")
   })
