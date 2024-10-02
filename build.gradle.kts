@@ -52,6 +52,8 @@ dependencies {
   implementation("io.ktor:ktor-server-auth:$ktor_version")
   implementation("io.ktor:ktor-server-cors:$ktor_version")
   implementation("io.ktor:ktor-server-sessions:$ktor_version")
+  implementation("io.ktor:ktor-server-call-logging:$ktor_version")
+
 
   // testing
   testImplementation(kotlin("test"))
@@ -62,5 +64,19 @@ tasks.test {
 }
 
 kotlin {
-  jvmToolchain(22)
+  jvmToolchain(17)
+}
+
+ktor {
+  docker {
+    jreVersion.set(JavaVersion.VERSION_17)
+
+    externalRegistry.set(
+      io.ktor.plugin.features.DockerImageRegistry.dockerHub(
+        appName = provider { "obfuscal" },
+        username = providers.environmentVariable("DOCKER_HUB_USERNAME"),
+        password = providers.environmentVariable("DOCKER_HUB_PASSWORD")
+      )
+    )
+  }
 }
