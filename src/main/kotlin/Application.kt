@@ -55,16 +55,7 @@ fun Application.module() {
 
   install(XForwardedHeaders)
 
-  install(CallLogging) {
-    format { call ->
-      val status = call.response.status()
-      val httpMethod = call.request.httpMethod.value
-      val route = call.request.path()
-      val params = call.request.queryParameters.entries().joinToString { "${it.key}=${it.value.joinToString()}" }
-      val headers = call.request.headers.entries().joinToString { "${it.key}=${it.value.joinToString()}" }
-      "$httpMethod $route $params $headers --> $status"
-    }
-  }
+  install(CallLogging)
 
   install(CORS) {
     allowHost(allowedHost)  // Debug client
@@ -124,8 +115,8 @@ fun Application.module() {
     cookie<UserSession>("user_session", SessionStorageMemory()) {
       cookie.path = "/"
       cookie.maxAgeInSeconds = 60 * 30
-      cookie.secure = true
-      cookie.extensions["SameSite"] = "none"
+//      cookie.secure = !isDev
+//      cookie.extensions["SameSite"] = "none"
     }
   }
 
