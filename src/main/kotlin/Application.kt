@@ -15,6 +15,7 @@ import io.ktor.server.plugins.*
 import io.ktor.server.plugins.callloging.*
 import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.plugins.cors.routing.*
+import io.ktor.server.plugins.forwardedheaders.*
 import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
@@ -36,6 +37,7 @@ private val client = HttpClient(CIO)
 private val user = System.getenv("USER") ?: error("No USER env variable")
 private val password = System.getenv("PASSWORD") ?: error("No PASSWORD env variable")
 private val isDev = System.getenv("DEV") == "true"
+private val allowedHost = System.getenv("HOST_WHITELIST")
 
 private val logger = LoggerFactory.getLogger(Application::class.java)
 
@@ -51,10 +53,21 @@ fun Application.module() {
   })
   Migrations.init()
 
-  install(CallLogging)
+  install(XForwardedHeaders)
+
+  install(CallLogging) {
+    format { call ->
+      val status = call.response.status()
+      val httpMethod = call.request.httpMethod.value
+      val route = call.request.path()
+      val params = call.request.queryParameters.entries().joinToString { "${it.key}=${it.value.joinToString()}" }
+      val headers = call.request.headers.entries().joinToString { "${it.key}=${it.value.joinToString()}" }
+      "$httpMethod $route $params $headers --> $status"
+    }
+  }
 
   install(CORS) {
-    allowHost("localhost:1234")  // Debug client
+    allowHost(allowedHost)  // Debug client
     allowMethod(HttpMethod.Options)
     allowMethod(HttpMethod.Delete)
     allowHeader("Content-Type")
@@ -94,6 +107,7 @@ fun Application.module() {
 
     session<UserSession>("auth-session") {
       validate { session ->
+        logger.info("Validating session ${session.username}")
         if (session.username == user) {
           session
         } else {
@@ -110,6 +124,8 @@ fun Application.module() {
     cookie<UserSession>("user_session", SessionStorageMemory()) {
       cookie.path = "/"
       cookie.maxAgeInSeconds = 60 * 30
+      cookie.secure = true
+      cookie.extensions["SameSite"] = "none"
     }
   }
 

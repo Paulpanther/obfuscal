@@ -53,7 +53,7 @@ dependencies {
   implementation("io.ktor:ktor-server-cors:$ktor_version")
   implementation("io.ktor:ktor-server-sessions:$ktor_version")
   implementation("io.ktor:ktor-server-call-logging:$ktor_version")
-
+  implementation("io.ktor:ktor-server-forwarded-header:$ktor_version")
 
   // testing
   testImplementation(kotlin("test"))
