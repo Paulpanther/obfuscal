@@ -46,9 +46,9 @@ fun main(args: Array<String>) {
 }
 
 fun Application.module() {
-  logger.info("Starting")
+  logger.info("Starting in ${if (isDev) "dev" else "prod"} mode")
 
-  Database.connect("jdbc:sqlite:obfuscal.db", setupConnection = { connection ->
+  Database.connect("jdbc:sqlite:db/obfuscal.db", setupConnection = { connection ->
     connection.createStatement().executeUpdate("PRAGMA foreign_keys = ON")
   })
   Migrations.init()
@@ -115,8 +115,8 @@ fun Application.module() {
     cookie<UserSession>("user_session", SessionStorageMemory()) {
       cookie.path = "/"
       cookie.maxAgeInSeconds = 60 * 30
-//      cookie.secure = !isDev
-//      cookie.extensions["SameSite"] = "none"
+      cookie.secure = !isDev
+      cookie.extensions["SameSite"] = "none"
     }
   }
 

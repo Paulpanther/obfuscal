@@ -42,7 +42,7 @@ bin/
 .DS_Store
 
 # DB
-*.db
+db/*.db
 
 .env
 src/main/resources/users.properties
