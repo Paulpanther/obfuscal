@@ -143,3 +143,19 @@ object DateSerializer : KSerializer<LocalDate> {
     return LocalDate.parse(raw, formatter)
   }
 }
+
+@OptIn(ExperimentalSerializationApi::class)
+@Serializer(forClass = Duration::class)
+object DurationSerializer : KSerializer<Duration> {
+  override fun serialize(encoder: Encoder, value: Duration) {
+    encoder.encodeLong(value.toMillis())
+  }
+
+  fun deserialize(raw: String): Duration = deserialize(raw.toLongOrNull() ?: error("Input is not a number"))
+  fun deserialize(raw: Long): Duration = Duration.of(raw, ChronoUnit.MILLIS)
+
+  override fun deserialize(decoder: Decoder): Duration {
+    val raw = decoder.decodeLong()
+    return deserialize(raw)
+  }
+}

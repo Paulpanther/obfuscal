@@ -7,6 +7,7 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import utils.LocalDateSlice
 import utils.LocalTimeSlice
 import java.io.InputStream
+import java.time.Duration
 import java.time.LocalDateTime
 import java.time.ZoneId
 
@@ -30,7 +31,8 @@ object CalendarController {
     streams: List<InputStream>,
     timezone: ZoneId,
     timeframe: LocalDateSlice,
-    sections: List<LocalTimeSlice>
+    sections: List<LocalTimeSlice>,
+    reloadEach: Duration?
   ): GeneratedCalendar {
     val startTime = sections.first().start
     val endTime = sections.last().end
@@ -51,7 +53,7 @@ object CalendarController {
       calendar.timezone = timezone.id
       calendar.sections = Json.encodeToString(sections)
       calendar.lastChanged = LocalDateTime.now()
-
+      calendar.reloadEach = reloadEach
 
       if (urls != null) {
         existingCalendar?.inputCalendars?.forEach { it.delete() }

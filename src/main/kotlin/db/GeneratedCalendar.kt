@@ -10,14 +10,17 @@ import org.jetbrains.exposed.dao.id.EntityID
 import org.jetbrains.exposed.dao.id.IntIdTable
 import org.jetbrains.exposed.sql.javatime.date
 import org.jetbrains.exposed.sql.javatime.datetime
+import org.jetbrains.exposed.sql.javatime.duration
 import org.jetbrains.exposed.sql.javatime.time
 import org.jetbrains.exposed.sql.transactions.transaction
 import utils.DateSerializer
 import utils.DateTimeSerializer
+import utils.DurationSerializer
 import utils.LocalDateSlice
 import utils.LocalTimeSlice
 import utils.TimeSerializer
 import java.time.DateTimeException
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -33,6 +36,7 @@ object GeneratedCalendars : IntIdTable("generated_calendar") {
   val endDate = date("endDate")
   val sections = varchar("sections", 255)
   val lastChanged = datetime("lastChanged")
+  val reloadEach = duration("reloadEach").nullable()
 }
 
 private val json = Json { isLenient = true }
@@ -78,6 +82,7 @@ class GeneratedCalendar(id: EntityID<Int>) : IntEntity(id) {
   var endDate by GeneratedCalendars.endDate
   var sections by GeneratedCalendars.sections
   var lastChanged by GeneratedCalendars.lastChanged
+  var reloadEach by GeneratedCalendars.reloadEach
 
   val sectionList get() = parseSections(sections)
   val timezoneId get() = parseTimezone(timezone)
@@ -95,7 +100,8 @@ class GeneratedCalendar(id: EntityID<Int>) : IntEntity(id) {
     endDate,
     sections,
     lastChanged,
-    transaction { inputCalendars.map { it.toData() } }
+    transaction { inputCalendars.map { it.toData() } },
+    reloadEach
   )
 }
 
@@ -115,5 +121,7 @@ data class GeneratedCalendarData(
   val sections: String,
   @Serializable(with = DateTimeSerializer::class)
   val lastChanged: LocalDateTime,
-  val inputCalendars: List<InputCalendarData>
+  val inputCalendars: List<InputCalendarData>,
+  @Serializable(with = DurationSerializer::class)
+  val reloadEach: Duration?
 )

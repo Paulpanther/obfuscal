@@ -9,10 +9,8 @@ object Migrations {
     logger.info("Initializing DB...")
 
     transaction {
-      if (SchemaUtils.listTables().isEmpty()) {
-        SchemaUtils.create(GeneratedCalendars, InputCalendars, Shares)
-        logger.info("Created DB")
-      }
+      SchemaUtils.createMissingTablesAndColumns(GeneratedCalendars, InputCalendars, Shares)
+      logger.info("Created DB")
     }
   }
 }

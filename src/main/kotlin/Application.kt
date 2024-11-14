@@ -24,6 +24,7 @@ import io.ktor.server.sessions.*
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.LoggerFactory
+import utils.DurationSerializer
 import utils.LocalDateSlice
 import java.io.InputStream
 import java.time.LocalDate
@@ -201,6 +202,7 @@ fun Application.configureRouting() {
           val name = call.queryParam("name")
 
           val timezone = GeneratedCalendar.parseTimezone(call.queryParam("timezone"))
+          val reloadEach = call.request.queryParameters["reloadEach"]?.let { DurationSerializer.deserialize(it) }
 
           val startDate = parseQueryDate(call.request.queryParameters, "timeframe-start")
           val endDate = parseQueryDate(call.request.queryParameters, "timeframe-end")
@@ -231,7 +233,7 @@ fun Application.configureRouting() {
               throw IllegalArgumentException("Only accepts calendar files with content type $ics, actual content type $contentType")
           }
 
-          val calendar = CalendarController.create(name, urls, streams, timezone, timeframe, sections)
+          val calendar = CalendarController.create(name, urls, streams, timezone, timeframe, sections, reloadEach)
 
           call.respond(calendar.toData())
         }
